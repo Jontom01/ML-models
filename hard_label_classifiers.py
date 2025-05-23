@@ -13,12 +13,9 @@ class HardClassifier(ABC):
     '''
     Base class for hard label classifiers using cross-entropy and SGD
     '''
-    def __init__(self, learning_rate, momentum, batch_size, weight_decay, num_output):
-        self.lr = learning_rate
-        self.mm = momentum
-        self.bs = batch_size
-        self.wd = weight_decay
-        self.num_output = num_output
+    def __init__(self, optim_params, num_classes):
+        self.optim_params = optim_params
+        self.num_classes = num_classes
 
         self.loss = nn.CrossEntropyLoss()
         self.net = self._build_net()
@@ -65,8 +62,13 @@ class LeNet(HardClassifier):
     '''
     Slightly modernized version of the LeNet CNN
     '''
-    def __init__(self, lr=0.0184, mm=0.8546, bs=32, wd=0.001, num_output=10):
-        super().__init__(learning_rate=lr, momentum=mm, batch_size=bs, weight_decay=wd, num_output=num_output)
+    def __init__(self, optim_params={
+        "lr": 0.0184, 
+        "momentum": 0.8546, 
+        "weight_decay": 1e-3
+    },
+    num_classes=10):
+        super().__init__(optim_params=optim_params, num_classes=num_classes)
 
     def _build_net(self):
         return nn.Sequential(
@@ -76,29 +78,34 @@ class LeNet(HardClassifier):
             nn.MaxPool2d(kernel_size=2, stride=2),
             nn.Flatten(), nn.LazyLinear(800, 256), nn.ReLU(), 
             nn.LazyLinear(256, 128), nn.ReLU(),
-            nn.LazyLinear(128, self.num_output)
+            nn.LazyLinear(128, self.num_classes)
         )
     
     def _build_optim(self):
-        return torch.optim.SGD(self.net.parameters(), lr=self.lr, momentum=self.mm, weight_decay=self.wd)
+        return torch.optim.SGD(self.net.parameters(), **self.optim_params)
 
 class MLPClassifier(HardClassifier):
     '''
     Simple MLP Classifier
     '''
-    def __init__(self, lr=1e-2, mm=0.55, bs=32, wd=1e-4, num_output=10):
-        super().__init__(learning_rate=lr, momentum=mm, batch_size=bs, weight_decay=wd, num_output=num_output)
+    def __init__(self, optim_params={
+        "lr": 1e-2, 
+        "momentum": 0.55, 
+        "weight_decay": 1e-4
+    },
+    num_classes=10):
+        super().__init__(optim_params=optim_params, num_classes=num_classes)
 
     def _build_net(self):
         return nn.Sequential(
             nn.Flatten(), nn.LazyLinear(784, 256), nn.ReLU(), 
             nn.Dropout(0.2), nn.LazyLinear(256, 128), nn.ReLU(),
             nn.Dropout(0.1), nn.LazyLinear(128, 64), nn.ReLU(),
-            nn.Dropout(0.05), nn.LazyLinear(64, self.num_output)
+            nn.Dropout(0.05), nn.LazyLinear(64, self.num_classes)
         )
     
     def _build_optim(self):
-        return torch.optim.SGD(self.net.parameters(), lr=self.lr, momentum=self.mm, weight_decay=self.wd)
+        return torch.optim.SGD(self.net.parameters(), **self.optim_params)
 
 class HPSearch:
     '''
@@ -118,13 +125,11 @@ class HPSearch:
             loss_val = 0
 
             for fold, (train_idx, val_idx) in enumerate(kf.split(self.data)):
-
-                mm = params["momentum"]
-                lr = params["lr"]
-                bs = params["batch_size"]
-                wd = params["weight_decay"]
-
-                print(f"Fold: {fold}, mm: {mm}, lr: {lr}, bs: {bs}, wd: {wd}")
+                
+                print(f"Fold: {fold}, Params: {params}")
+                
+                bs = params.pop("batch_size", None) #this leaves just the optimizer params. MUST POP ANY NEW HYPERPARAMS THAT ARE NOT OPTIMIZER PARAMS
+                if bs == None: bs = 32
 
                 train_set = Subset(self.data, train_idx)
                 val_set = Subset(self.data, val_idx)
@@ -132,7 +137,7 @@ class HPSearch:
                 train_loader = get_dataloader(train_set, batch_size=bs, train=True)
                 val_loader = get_dataloader(val_set, batch_size=bs, train=False)
 
-                net = self.netclass(lr=lr, mm=mm, bs=bs, wd=wd, num_output=10)
+                net = self.netclass(optim_params=params, num_classes=10)
                 
                 net.fit(train_loader, epoch=5)
                 eval_loss, accuracy = net.eval(val_loader)
@@ -193,23 +198,26 @@ if __name__ == "__main__":
         #])
         "momentum": hp.uniform("momentum", 0.854, 0.855)
     }
+    
+    #HYPER PARAM SEARCH
+    full_trainset, test_set = get_FashionMNIST()
+    train_set, val_set = random_split(full_trainset, [50000, 10000])
+    
+    param_search = HPSearch(search_space=search_space, NetClass=MLPClassifier, data=full_trainset)
 
-
+    param_search.Search()
+    '''
+    #SIMPLE LOSS/ACCURACY TEST
     leNet = LeNet()
     mlp = MLPClassifier()
 
     full_trainset, test_set = get_FashionMNIST()
     train_set, val_set = random_split(full_trainset, [50000, 10000])
+    train_loader = get_dataloader(train_set, batch_size=32, train=True)
+    val_loader = get_dataloader(val_set, batch_size=32, train=False)
 
-    train_loader = get_dataloader(train_set, batch_size=leNet.bs, train=True)
-    val_loader = get_dataloader(val_set, batch_size=leNet.bs, train=False)
-    
-    param_search = HPSearch(search_space=search_space, NetClass=LeNet, data=full_trainset)
-
-    param_search.Search()
-    '''
-    leNet.fit(train_loader)
-    eval_loss, accuracy = net.eval(val_loader)
+    leNet.fit(train_loader, epoch=10)
+    eval_loss, accuracy = leNet.eval(val_loader)
 
     print(f"Validation Loss: {eval_loss:.4f}, Accuracy: {accuracy:.4f}")
     '''
