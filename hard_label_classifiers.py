@@ -72,13 +72,13 @@ class LeNet(HardClassifier):
 
     def _build_net(self):
         return nn.Sequential(
-            nn.LazyConv2d(12, kernel_size=5, padding=2), nn.ReLU(),
+            nn.Conv2d(in_channels=1, out_channels=12, kernel_size=5, padding=2), nn.ReLU(),
             nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.LazyConv2d(32, kernel_size=5), nn.ReLU(),
+            nn.Conv2d(in_channels=12, out_channels=32, kernel_size=5), nn.ReLU(),
             nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.Flatten(), nn.LazyLinear(800, 256), nn.ReLU(), 
-            nn.LazyLinear(256, 128), nn.ReLU(),
-            nn.LazyLinear(128, self.num_classes)
+            nn.Flatten(), nn.Linear(in_features=800, out_features=256), nn.ReLU(), 
+            nn.Linear(in_features=256, out_features=128), nn.ReLU(),
+            nn.Linear(in_features=128, out_features=self.num_classes)
         )
     
     def _build_optim(self):
@@ -98,10 +98,10 @@ class MLPClassifier(HardClassifier):
 
     def _build_net(self):
         return nn.Sequential(
-            nn.Flatten(), nn.LazyLinear(784, 256), nn.ReLU(), 
-            nn.Dropout(0.2), nn.LazyLinear(256, 128), nn.ReLU(),
-            nn.Dropout(0.1), nn.LazyLinear(128, 64), nn.ReLU(),
-            nn.Dropout(0.05), nn.LazyLinear(64, self.num_classes)
+            nn.Flatten(), nn.Linear(in_features=784, out_features=256), nn.ReLU(), nn.Dropout(0.2), 
+            nn.Linear(in_features=256, out_features=128), nn.ReLU(), nn.Dropout(0.1), 
+            nn.Linear(in_features=128, out_features=64), nn.ReLU(), nn.Dropout(0.05), 
+            nn.Linear(in_features=64, out_features=self.num_classes)
         )
     
     def _build_optim(self):
@@ -127,8 +127,8 @@ class HPSearch:
             for fold, (train_idx, val_idx) in enumerate(kf.split(self.data)):
                 
                 print(f"Fold: {fold}, Params: {params}")
-                
-                bs = params.pop("batch_size", None) #this leaves just the optimizer params. MUST POP ANY NEW HYPERPARAMS THAT ARE NOT OPTIMIZER PARAMS
+                params_copy = params.copy()
+                bs = params_copy.pop("batch_size", None) #this leaves just the optimizer params. MUST POP ANY NEW HYPERPARAMS THAT ARE NOT OPTIMIZER PARAMS
                 if bs == None: bs = 32
 
                 train_set = Subset(self.data, train_idx)
@@ -137,7 +137,7 @@ class HPSearch:
                 train_loader = get_dataloader(train_set, batch_size=bs, train=True)
                 val_loader = get_dataloader(val_set, batch_size=bs, train=False)
 
-                net = self.netclass(optim_params=params, num_classes=10)
+                net = self.netclass(optim_params=params_copy, num_classes=10)
                 
                 net.fit(train_loader, epoch=5)
                 eval_loss, accuracy = net.eval(val_loader)
@@ -165,7 +165,7 @@ class HPSearch:
         for trial in trials.trials:
             print(trial["tid"], trial["result"]["loss"], trial["misc"]["vals"])
 
-def get_FashionMNIST():
+def get_FashionMNIST(): #eventually turn this into a class that'll generalize to all pytorch downloadable image datasets
     trans = transforms.Compose([
         transforms.RandomHorizontalFlip(p=0.5),
         transforms.Resize((28,28)), 
@@ -181,29 +181,18 @@ def get_dataloader(data, batch_size, train=False):
 
 if __name__ == "__main__":
 
-    search_space = {
-        # continuous uniform between 0 and 1
-        #"dropout_1":    hp.uniform("dropout_1", 0.0, 0.5),
-        #"dropout_2":    hp.uniform("dropout_2", 0.0, 0.5),
-        #"dropout_3":    hp.uniform("dropout_3", 0.0, 0.5),
+    #HYPER PARAM SEARCH
+    search_space = {,
         "weight_decay": hp.loguniform("weight_decay", np.log(1e-3), np.log(1.01e-3)),
-        # log–uniform learning‐rate between 1e–5 and 1e–1
         "lr":         hp.loguniform("lr", np.log(0.0184), np.log(0.0185)),
-        # choice among a few options
         "batch_size": hp.choice("batch_size", [32, 64, 128, 256]),
-        # conditional subspace: only pick momentum if using SGD
-        #"optimizer":  hp.choice("opt", [
-        #    {"type": "sgd", "momentum": hp.uniform("momentum", 0.5, 0.99)},
-        #    {"type": "adam"}  # no extra params
-        #])
         "momentum": hp.uniform("momentum", 0.854, 0.855)
     }
     
-    #HYPER PARAM SEARCH
     full_trainset, test_set = get_FashionMNIST()
     train_set, val_set = random_split(full_trainset, [50000, 10000])
     
-    param_search = HPSearch(search_space=search_space, NetClass=MLPClassifier, data=full_trainset)
+    param_search = HPSearch(search_space=search_space, NetClass=LeNet, data=full_trainset)
 
     param_search.Search()
     '''
