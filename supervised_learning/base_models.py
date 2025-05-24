@@ -113,13 +113,15 @@ class LinearRegressor(SupervisedModel):
             if verbose:
                 print(f'Epoch {i}, Loss: {loss_ret.item():.4f}')
     
-    def eval(self, loader):
+    def eval(self, loader, verbose=False):
         self.net.eval()
-        total_loss = 0.0
+        total_loss, total = 0.0, 0
         with torch.no_grad():
             for X, y in loader: #each batch
                 y_pred = self.net(X)
+                if verbose: print(y, y_pred)
                 total_loss += self.loss(y_pred, y).item() * X.size(0)
-        avg_loss = total_loss / len(loader)
+                total += y.size(0)
+        avg_loss = total_loss / total
 
         return avg_loss, None

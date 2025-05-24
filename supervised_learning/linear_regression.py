@@ -1,57 +1,93 @@
 import torch
 import numpy as np
+import pandas as pd
 from torch import nn
-from torch.utils.data import random_split
-from hyperopt import hp
+from torch.utils.data import random_split, Subset
+from hyperopt import hp, space_eval
 from base_models import LinearRegressor
 from param_search_utils import HPSearch
 
-class BasicRegressor(LinearRegressor):
+class MLPRegressor(LinearRegressor):
     '''
-    Simple in-and-out linear regressor
+    Multilayer linear regressor
     '''
-    def __init__(self, optim_params={
-        "lr": 1e-2, 
-        "momentum": 0.745, 
-        "weight_decay": 1e-4
+    def __init__(self, optim_params={ #these params are best with batch_size=128
+        "lr": 0.00039, 
+        "momentum": 0.8878, 
+        "weight_decay": 0.00038
     },
     net_params={
-        "num_features": 2
+        "num_features": 7
     }
     ):
         super().__init__(optim_params=optim_params, net_params=net_params)
 
     def _build_net(self):
-        return nn.Linear(in_features=self.net_params["num_features"], out_features=1)
+        return nn.Sequential(
+            nn.Linear(in_features=self.net_params["num_features"], out_features=512), nn.ReLU(), nn.Dropout(0.1),
+            nn.Linear(in_features=512, out_features=256), nn.ReLU(), nn.Dropout(0.1),
+            nn.Linear(in_features=256, out_features=128), nn.ReLU(), nn.Dropout(0.1),
+            nn.Linear(in_features=128, out_features=1)
+            )
     
     def _build_optim(self):
         return torch.optim.SGD(self.net.parameters(), **self.optim_params)
 
+def student_performance_dataset():
+    #Preprocess dataset
+    df = pd.read_csv("./datasets/lin_reg_kaggle/Student_Performance.csv")
+    label = "Performance Index"
+    features = ["Hours Studied", "Previous Scores", "Extracurricular Activities", "Sleep Hours", "Sample Question Papers Practiced"]
+
+    categorical_features = df[features].select_dtypes(include=['object']).columns
+    numeric_features = df[features].select_dtypes(include=['number']).columns
+
+    df[numeric_features] = df[numeric_features].apply(
+        lambda x: (x - x.mean()) / (x.std()))
+    df[label] = df[label].apply(lambda x: x / 100)
+
+    categorical_df = pd.get_dummies(df[categorical_features], dummy_na=True, dtype=int)
+
+    df_finish = pd.concat([df[numeric_features], categorical_df, df[label]], axis=1)
+
+    #DataFrame -> Pytorch ready
+    X_pre = df_finish.drop(columns=[label]).values
+    y_pre = df_finish[label].values
+
+    X = torch.tensor(X_pre, dtype=torch.float32)
+    y = torch.tensor(y_pre, dtype=torch.float32)
+
+    dataset = torch.utils.data.TensorDataset(X, y)
+
+    return dataset
+
 if __name__ == "__main__":
-
-    #Synthetic data
-    torch.manual_seed(0)
-    n_samples, n_features = 1000, 2
-    X = torch.randn(n_samples, n_features)
-    w_true = torch.tensor([[2.0], [-3.4]])
-    b_true = 4.2
-    noise = torch.randn(n_samples, 1) * 0.01
-    y = X @ w_true + b_true + noise   
-
-    X_train = X[:800]
-    y_train = y[:800]
-    X_test   = X[800:]
-    y_test   = y[800:]
-
     #HYPER PARAM SEARCH
     search_space = {
         "weight_decay": hp.loguniform("weight_decay", np.log(1e-5), np.log(1e-3)),
-        "lr":         hp.loguniform("lr", np.log(1e-3), np.log(1e-1)),
-        "batch_size": hp.choice("batch_size", [32, 64]),
+        "lr":         hp.loguniform("lr", np.log(1e-5), np.log(1e-3)),
+        "batch_size": hp.choice("batch_size", [128, 256, 512]),
         "momentum": hp.uniform("momentum", 0.5, 0.99)
     }
-    dataset = torch.utils.data.TensorDataset(X_train, y_train)
 
-    param_search = HPSearch(search_space=search_space, NetClass=BasicRegressor, data=dataset)
+    dataset = student_performance_dataset()
+    train_set = Subset(dataset, list(range(7000)))
+    test_set = Subset(dataset, list(range(7000, len(dataset))))
 
-    param_search.Search(num_folds=20, num_epochs=10)
+    param_search = HPSearch(search_space=search_space, NetClass=MLPRegressor, data=train_set)
+
+    best_params = param_search.Search(num_folds=3, num_epochs=10, num_trials=10) #index of the best params
+
+    best_params = space_eval(search_space, best_params) #get the actual values
+
+    batch_size = best_params.pop("batch_size") #remove batch size since its not an optim_param
+
+    #TRAINING AND SAVING A MODEL USING THE BEST HYPERPARAMS
+    linreg = MLPRegressor(optim_params=best_params)
+
+    linreg.fit(loader=torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True), epoch=100, verbose=True)
+
+    loss = linreg.eval(loader=torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False), verbose=True)
+    print(f"Test set loss: {loss}")
+
+    #torch.save(linreg.net.state_dict(), "./supervised_learning/models/student_performance_regressor.pth")

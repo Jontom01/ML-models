@@ -73,7 +73,9 @@ def get_FashionMNIST(): #eventually turn this into a class that'll generalize to
     return train_data, test_data
 
 if __name__ == "__main__":
-
+    full_trainset, test_set = get_FashionMNIST()
+    train_set, val_set = random_split(full_trainset, [50000, 10000])
+    '''
     #HYPER PARAM SEARCH
     search_space = {
         "weight_decay": hp.loguniform("weight_decay", np.log(1e-3), np.log(1.01e-3)),
@@ -82,25 +84,17 @@ if __name__ == "__main__":
         "momentum": hp.uniform("momentum", 0.854, 0.855)
     }
     
-    full_trainset, test_set = get_FashionMNIST()
-    train_set, val_set = random_split(full_trainset, [50000, 10000])
-    
     param_search = HPSearch(search_space=search_space, NetClass=MLPClassifier, data=full_trainset)
 
     param_search.Search()
     '''
-    #SIMPLE LOSS/ACCURACY TEST
+    #LOSS/ACCURACY TEST
+
     leNet = LeNet()
-    mlp = MLPClassifier()
 
-    full_trainset, test_set = get_FashionMNIST()
-    train_set, val_set = random_split(full_trainset, [50000, 10000])
-    train_loader = torch.utils.data.DataLoader(train_set, batch_size=32, shuffle=True)
-    val_loader = torch.utils.data.DataLoader(val_set, batch_size=32, shuffle=False)
+    leNet.fit(loader=torch.utils.data.DataLoader(train_set, batch_size=32, shuffle=True), epoch=20, verbose=True)
 
-    leNet.fit(train_loader, epoch=10)
-    eval_loss, accuracy = leNet.eval(val_loader)
+    loss, accuracy = leNet.eval(loader=torch.utils.data.DataLoader(test_set, batch_size=32, shuffle=False))
+    print(f"Test Loss: {loss}, Test Accuracy: {accuracy}")
 
-    print(f"Validation Loss: {eval_loss:.4f}, Accuracy: {accuracy:.4f}")
-    '''
-    #torch.save(leNet.net.state_dict(), "LeNet_edited2_test.pth")
+    #torch.save(leNet.net.state_dict(), "./supervised_learning/models/modified_LeNet_classifier.pth")

@@ -15,7 +15,7 @@ class HPSearch: #figure out how to make it so HPSearch can also take and properl
         self.netclass = NetClass
         self.data = data
 
-    def Search(self, num_folds=3, num_epochs=5):
+    def Search(self, num_folds=3, num_epochs=5, num_trials=6):
         trials = Trials()
 
         def _objective(params):
@@ -37,7 +37,7 @@ class HPSearch: #figure out how to make it so HPSearch can also take and properl
                 val_loader = torch.utils.data.DataLoader(val_set, batch_size=bs, shuffle=False)
 
                 net = self.netclass(optim_params=params_copy)
-                net.fit(train_loader, epoch=num_epochs, verbose=True)
+                net.fit(train_loader, epoch=num_epochs, verbose=False)
                 eval_loss, _ = net.eval(val_loader)
 
                 print(f"Evaluation of Fold: {fold}, Validation Loss: {eval_loss:.4f}")
@@ -54,7 +54,7 @@ class HPSearch: #figure out how to make it so HPSearch can also take and properl
             fn=_objective,           #objective function
             space=self.search_space,     #the hyperparameter space
             algo=tpe.suggest,       #the Tree-structured Parzen Estimator
-            max_evals=6,           #total number of trials
+            max_evals=num_trials,           #total number of trials
             trials=trials           #record of each trial’s results
         )
 
@@ -62,3 +62,4 @@ class HPSearch: #figure out how to make it so HPSearch can also take and properl
 
         for trial in trials.trials:
             print(trial["tid"], trial["result"]["loss"], trial["misc"]["vals"])
+        return best
