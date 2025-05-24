@@ -6,7 +6,7 @@ from torch import nn
 import time
 import torch
 
-class HPSearch:
+class HPSearch: #figure out how to make it so HPSearch can also take and properly sort other hyperparams that aren't just from the optimizer
     '''
     Performs hyperparameter on a search space using K-fold cross validation. Excepts a class implementation of HardClassifiers 
     '''
@@ -15,11 +15,11 @@ class HPSearch:
         self.netclass = NetClass
         self.data = data
 
-    def Search(self):
+    def Search(self, num_folds=3, num_epochs=5):
         trials = Trials()
 
         def _objective(params):
-            K = 3
+            K = num_folds
             kf = KFold(n_splits=K, shuffle=True, random_state=42)
             loss_val = 0
 
@@ -36,12 +36,11 @@ class HPSearch:
                 train_loader = torch.utils.data.DataLoader(train_set, batch_size=bs, shuffle=True)
                 val_loader = torch.utils.data.DataLoader(val_set, batch_size=bs, shuffle=False)
 
-                net = self.netclass(optim_params=params_copy, num_classes=10)
-                
-                net.fit(train_loader, epoch=5)
-                eval_loss, accuracy = net.eval(val_loader)
+                net = self.netclass(optim_params=params_copy)
+                net.fit(train_loader, epoch=num_epochs, verbose=True)
+                eval_loss, _ = net.eval(val_loader)
 
-                print(f"Evaluation of Fold: {fold}, Validation Loss: {eval_loss:.4f}, Accuracy: {accuracy:.4f}")
+                print(f"Evaluation of Fold: {fold}, Validation Loss: {eval_loss:.4f}")
                 loss_val += eval_loss
 
             return {

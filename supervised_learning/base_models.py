@@ -30,11 +30,11 @@ class SupervisedModel(ABC):
 
 class HardClassifier(SupervisedModel):
     '''
-    Base class for hard label classifiers using cross-entropy and SGD
+    Base class for hard label classifiers using cross-entropy loss
     '''
-    def __init__(self, optim_params, num_classes):
+    def __init__(self, optim_params, net_params):
         self.optim_params = optim_params
-        self.num_classes = num_classes
+        self.net_params = net_params
 
         super().__init__()
 
@@ -49,7 +49,7 @@ class HardClassifier(SupervisedModel):
     def _build_loss(self):
         return nn.CrossEntropyLoss()
 
-    def fit(self, loader, epoch=20, verbose=True):
+    def fit(self, loader, epoch=20, verbose=False):
         self.net.train()
         for i in range(epoch):
             loss_epoch = 0
@@ -77,3 +77,49 @@ class HardClassifier(SupervisedModel):
         accuracy = correct / total
 
         return avg_loss, accuracy
+
+class LinearRegressor(SupervisedModel):
+    '''
+    Base class for linear regression models using MSE loss
+    '''
+    def __init__(self, optim_params, net_params):
+        self.optim_params = optim_params
+        self.net_params = net_params
+
+        super().__init__()
+
+    @abstractmethod
+    def _build_net(self):
+        ...
+
+    @abstractmethod
+    def _build_optim(self):
+        ...
+    
+    def _build_loss(self):
+        return nn.MSELoss()
+
+    def fit(self, loader, epoch=20, verbose=False):
+        self.net.train()
+        for i in range(epoch):
+            loss_epoch = 0
+            for X, y in loader: #each batch
+                y_pred = self.net(X)
+                loss_ret = self.loss(y_pred, y)
+                loss_epoch += loss_ret.item()
+                self.optim.zero_grad()
+                loss_ret.backward()
+                self.optim.step()
+            if verbose:
+                print(f'Epoch {i}, Loss: {loss_ret.item():.4f}')
+    
+    def eval(self, loader):
+        self.net.eval()
+        total_loss = 0.0
+        with torch.no_grad():
+            for X, y in loader: #each batch
+                y_pred = self.net(X)
+                total_loss += self.loss(y_pred, y).item() * X.size(0)
+        avg_loss = total_loss / len(loader)
+
+        return avg_loss, None

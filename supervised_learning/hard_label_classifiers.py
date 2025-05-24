@@ -17,8 +17,10 @@ class LeNet(HardClassifier):
         "momentum": 0.8546, 
         "weight_decay": 1e-3
     },
-    num_classes=10):
-        super().__init__(optim_params=optim_params, num_classes=num_classes)
+    net_params={
+        "num_classes": 10
+    }):
+        super().__init__(optim_params=optim_params, net_params=net_params)
 
     def _build_net(self):
         return nn.Sequential(
@@ -28,7 +30,7 @@ class LeNet(HardClassifier):
             nn.MaxPool2d(kernel_size=2, stride=2),
             nn.Flatten(), nn.Linear(in_features=800, out_features=256), nn.ReLU(), 
             nn.Linear(in_features=256, out_features=128), nn.ReLU(),
-            nn.Linear(in_features=128, out_features=self.num_classes)
+            nn.Linear(in_features=128, out_features=self.net_params["num_classes"])
         )
     
     def _build_optim(self):
@@ -43,15 +45,17 @@ class MLPClassifier(HardClassifier):
         "momentum": 0.55, 
         "weight_decay": 1e-4
     },
-    num_classes=10):
-        super().__init__(optim_params=optim_params, num_classes=num_classes)
+    net_params={
+        "num_classes": 10
+    }):
+        super().__init__(optim_params=optim_params, net_params=net_params)
 
     def _build_net(self):
         return nn.Sequential(
             nn.Flatten(), nn.Linear(in_features=784, out_features=256), nn.ReLU(), nn.Dropout(0.2), 
             nn.Linear(in_features=256, out_features=128), nn.ReLU(), nn.Dropout(0.1), 
             nn.Linear(in_features=128, out_features=64), nn.ReLU(), nn.Dropout(0.05), 
-            nn.Linear(in_features=64, out_features=self.num_classes)
+            nn.Linear(in_features=64, out_features=self.net_params["num_classes"])
         )
     
     def _build_optim(self):
@@ -81,7 +85,7 @@ if __name__ == "__main__":
     full_trainset, test_set = get_FashionMNIST()
     train_set, val_set = random_split(full_trainset, [50000, 10000])
     
-    param_search = HPSearch(search_space=search_space, NetClass=LeNet, data=full_trainset)
+    param_search = HPSearch(search_space=search_space, NetClass=MLPClassifier, data=full_trainset)
 
     param_search.Search()
     '''
