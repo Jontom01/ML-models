@@ -1,2 +1,2 @@
 # ML-models
-Messing around with ML algorithms
+Messing around with ML

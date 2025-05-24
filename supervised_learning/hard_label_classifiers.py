@@ -64,8 +64,8 @@ def get_FashionMNIST(): #eventually turn this into a class that'll generalize to
         transforms.ToTensor(),
         transforms.Normalize((0.5,), (0.5,))
         ])
-    train_data = torchvision.datasets.FashionMNIST(root="./my_data_dir", train=True, transform=trans, download=True)
-    test_data = torchvision.datasets.FashionMNIST(root="./my_data_dir", train=False, transform=trans, download=True)
+    train_data = torchvision.datasets.FashionMNIST(root="./datasets", train=True, transform=trans, download=True)
+    test_data = torchvision.datasets.FashionMNIST(root="./datasets", train=False, transform=trans, download=True)
     return train_data, test_data
 
 if __name__ == "__main__":
