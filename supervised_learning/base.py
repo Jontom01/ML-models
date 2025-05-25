@@ -119,7 +119,10 @@ class LinearRegressor(SupervisedModel):
         with torch.no_grad():
             for X, y in loader: #each batch
                 y_pred = self.net(X)
-                if verbose: print(y, y_pred)
+                if verbose: #mean percent  error
+                    pct_err = torch.abs((y_pred - y) / (y + 1e-6)) * 100
+                    mean_pct_err = pct_err.mean().item()
+                    print(f"Mean % error = {mean_pct_err}%")
                 total_loss += self.loss(y_pred, y).item() * X.size(0)
                 total += y.size(0)
         avg_loss = total_loss / total

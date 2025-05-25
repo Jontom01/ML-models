@@ -1,6 +1,6 @@
 from hyperopt import fmin, tpe, hp, Trials, STATUS_OK
 from torch.utils.data import random_split, Subset
-from base_models import SupervisedModel
+from base import SupervisedModel
 from sklearn.model_selection import KFold
 from torch import nn
 import time

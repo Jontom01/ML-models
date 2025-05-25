@@ -5,7 +5,7 @@ from torch import nn
 from torchvision import transforms
 from torch.utils.data import random_split
 from hyperopt import hp
-from base_models import HardClassifier
+from base import HardClassifier
 from param_search_utils import HPSearch
 
 class LeNet(HardClassifier):
