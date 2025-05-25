@@ -119,7 +119,7 @@ class LinearRegressor(SupervisedModel):
         with torch.no_grad():
             for X, y in loader: #each batch
                 y_pred = self.net(X)
-                if verbose: #mean percent  error
+                if verbose: #mean percent error. However, take note that this is the mean percent error of whatever form your data currently is in
                     pct_err = torch.abs((y_pred - y) / (y + 1e-6)) * 100
                     mean_pct_err = pct_err.mean().item()
                     print(f"Mean % error = {mean_pct_err}%")

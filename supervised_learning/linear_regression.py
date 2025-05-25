@@ -14,9 +14,7 @@ class MLPRegressor(LinearRegressor):
     Multilayer linear regressor
     '''
     def __init__(self, optim_params={ #these params are best with batch_size=128
-        "lr": 0.00075, #0.00039
-        "momentum": 0.9, #0.8878
-        "weight_decay": 0.00075 #0.00038
+        "lr": 1.78e-5,
     },
     net_params={
         "num_features": 2
@@ -39,44 +37,35 @@ def student_performance_dataset():
     #Preprocess dataset
     df = pd.read_csv("./datasets/lin_reg_kaggle/Student_Performance.csv")
     label = "Performance Index"
-    #features = ["Hours Studied", "Previous Scores", "Extracurricular Activities", "Sleep Hours", "Sample Question Papers Practiced"]
 
-    df = df.drop(columns=["Extracurricular Activities", "Sleep Hours", "Sample Question Papers Practiced"])
+    df = df.drop(columns=["Extracurricular Activities", "Sleep Hours"]) #sns.pairwise showed no pattern between these 2 cols and the performance index
     df = df[df.columns].apply(lambda x: (x - x.mean()) / (x.std()))
 
-    #Switched it so I drop most columns after examining pairwise graph
-    '''
-    categorical_features = df[features].select_dtypes(include=['object']).columns
-    numeric_features = df[features].select_dtypes(include=['number']).columns
-
-    df[numeric_features] = df[numeric_features].apply(
-        lambda x: (x - x.mean()) / (x.std()))
-    df[label] = df[label].apply(lambda x: x / 100)
-
-    categorical_df = pd.get_dummies(df[categorical_features], dummy_na=True, dtype=int)
-
-    df_finish = pd.concat([df[numeric_features], categorical_df, df[label]], axis=1)
-    '''
     #DataFrame -> Pytorch ready
     X_pre = df.drop(columns=[label]).values
     y_pre = df[label].values
 
     X = torch.tensor(X_pre, dtype=torch.float32)
     y = torch.tensor(y_pre, dtype=torch.float32)
-    y = y.unsqueeze(1)
+    y = y.unsqueeze(1) #so that the shape between my model output and the actual label shape are the same
+
     dataset = torch.utils.data.TensorDataset(X, y)
 
     return dataset
 
 if __name__ == "__main__":
+
+    #Create datasets
     dataset = student_performance_dataset()
     train_set = Subset(dataset, list(range(7000)))
     test_set = Subset(dataset, list(range(7000, len(dataset))))
-    '''
+    
+    #Pairwise plot
     #df = pd.read_csv("./datasets/lin_reg_kaggle/Student_Performance.csv")
     ##sns.pairplot(df)
     #plt.show()
-    
+
+    '''
     #HYPER PARAM SEARCH
     search_space = {
         #"weight_decay": hp.loguniform("weight_decay", np.log(1e-5), np.log(1e-3)),
@@ -95,7 +84,6 @@ if __name__ == "__main__":
     
     
     #TRAINING AND SAVING A MODEL USING THE BEST HYPERPARAMS
-    
     linreg = MLPRegressor(optim_params=best_params)
 
     linreg.fit(loader=torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True), epoch=100, verbose=True)
@@ -103,29 +91,14 @@ if __name__ == "__main__":
     loss = linreg.eval(loader=torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False), verbose=True)
     print(f"Test set loss: {loss}")
 
-    torch.save(linreg.net.state_dict(), "./supervised_learning/models/student_performance_regressor.pth")
+    torch.save(linreg.net.state_dict(), "./supervised_learning/models/student_performance_regressor_3features.pth")
+    
     '''
-    
-    
+
     #RUN BEST MODEL
-    linreg = MLPRegressor(optim_params={ "lr": 1e-5})
-    linreg.net.load_state_dict(torch.load("./supervised_learning/models/student_performance_regressor.pth"))
-
-    df = pd.read_csv("./datasets/lin_reg_kaggle/Student_Performance.csv")
-    label = "Performance Index"
-    #features = ["Hours Studied", "Previous Scores", "Extracurricular Activities", "Sleep Hours", "Sample Question Papers Practiced"]
-
-    df = df.drop(columns=["Extracurricular Activities", "Sleep Hours", "Sample Question Papers Practiced"])
-    X_pre = df.drop(columns=[label]).values
-    y_pre = df[label].values
-
-    X = torch.tensor(X_pre, dtype=torch.float32)
-    y = torch.tensor(y_pre, dtype=torch.float32)
-    y = y.unsqueeze(1)
-
-    dataset = torch.utils.data.TensorDataset(X, y)
-    test_set = Subset(dataset, list(range(7000, len(dataset))))
-    
-    loss = linreg.eval(loader=torch.utils.data.DataLoader(test_set, batch_size=128, shuffle=False), verbose=True)
+    linreg = MLPRegressor(optim_params={ "lr": 8.5248e-05}, net_params={"num_features": 3}) #AdamW optimizer
+    linreg.net.load_state_dict(torch.load("./supervised_learning/models/student_performance_regressor_3features.pth"))
+    loss = linreg.eval(loader=torch.utils.data.DataLoader(test_set, batch_size=512, shuffle=False), verbose=True)
     print(f"Test set loss: {loss}")
+    
     
