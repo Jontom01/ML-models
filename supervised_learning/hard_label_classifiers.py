@@ -1,12 +1,48 @@
 import torch
 import torchvision
 import numpy as np
+from torchsummary import summary
 from torch import nn
 from torchvision import transforms
 from torch.utils.data import random_split
 from hyperopt import hp
 from base import HardClassifier
 from param_search_utils import HPSearch
+
+class VGG(HardClassifier):
+    def __init__(self, arch=((1,8), (1,16), (2,16)), optim_params={
+        "lr": 0.1, 
+        "momentum": 0.9, 
+        "weight_decay": 1e-4
+    },
+    net_params={
+        "num_classes": 10
+    }):
+        self.arch = arch
+        super().__init__(optim_params=optim_params, net_params=net_params)
+
+    def _build_net(self):
+        conv_blks = []
+        for (num_convs, out_channels) in self.arch:
+            conv_blks.append(self._vgg_block(num_convs=num_convs, out_channels=out_channels))
+
+        return nn.Sequential(
+            *conv_blks,
+            nn.Flatten(), nn.LazyLinear(4096), nn.ReLU(), nn.Dropout(0.5), 
+            nn.LazyLinear(4096), nn.ReLU(), nn.Dropout(0.5),
+            nn.LazyLinear(self.net_params["num_classes"])
+        )
+    
+    def _build_optim(self):
+        return torch.optim.SGD(self.net.parameters(), **self.optim_params)
+    
+    def _vgg_block(self, num_convs, out_channels):
+        layers = []
+        for _ in range(num_convs):
+            layers.append(nn.LazyConv2d(out_channels, kernel_size=3, padding=1))
+            layers.append(nn.ReLU())
+        layers.append(nn.MaxPool2d(kernel_size=2, stride=2))
+        return nn.Sequential(*layers)
 
 class LeNet(HardClassifier):
     '''
@@ -89,12 +125,15 @@ if __name__ == "__main__":
     param_search.Search()
     '''
     #LOSS/ACCURACY TEST
-
+    vgg = VGG()
+    #summary(vgg11.net, (1, 1, 28, 28))
+    
     leNet = LeNet()
+    
 
-    leNet.fit(loader=torch.utils.data.DataLoader(train_set, batch_size=32, shuffle=True), epoch=20, verbose=True)
+    vgg.fit(loader=torch.utils.data.DataLoader(train_set, batch_size=512, shuffle=True), epoch=20, verbose=True)
 
-    loss, accuracy = leNet.eval(loader=torch.utils.data.DataLoader(test_set, batch_size=32, shuffle=False))
+    loss, accuracy = vgg.eval(loader=torch.utils.data.DataLoader(test_set, batch_size=512, shuffle=False))
     print(f"Test Loss: {loss}, Test Accuracy: {accuracy}")
 
-    #torch.save(leNet.net.state_dict(), "./supervised_learning/models/modified_LeNet_classifier.pth")
+    torch.save(leNet.net.state_dict(), "./supervised_learning/models/modified_VGG_classifier.pth")
